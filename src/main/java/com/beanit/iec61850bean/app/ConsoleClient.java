@@ -138,60 +138,7 @@ public class ConsoleClient {
         SSLContext sslContext = SSLContext.getInstance("TLS");
         sslContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), new SecureRandom());
 
-        final javax.net.ssl.SSLSocketFactory baseFactory = sslContext.getSocketFactory();
-
-        javax.net.ssl.SSLSocketFactory wrappedFactory = new javax.net.ssl.SSLSocketFactory() {
-          @Override
-          public String[] getDefaultCipherSuites() {
-            return baseFactory.getDefaultCipherSuites();
-          }
-
-          @Override
-          public String[] getSupportedCipherSuites() {
-            return baseFactory.getSupportedCipherSuites();
-          }
-
-          private java.net.Socket disableHostnameVerification(java.net.Socket socket) {
-            if (socket instanceof SSLSocket) {
-              SSLSocket sslSocket = (SSLSocket) socket;
-              SSLParameters params = sslSocket.getSSLParameters();
-              // disable endpoint identification (hostname verification)
-              params.setEndpointIdentificationAlgorithm(null);
-              sslSocket.setSSLParameters(params);
-            }
-            return socket;
-          }
-
-          @Override
-          public java.net.Socket createSocket(java.net.Socket s, String host, int port, boolean autoClose)
-              throws java.io.IOException {
-            return disableHostnameVerification(baseFactory.createSocket(s, host, port, autoClose));
-          }
-
-          @Override
-          public java.net.Socket createSocket(String host, int port) throws java.io.IOException {
-            return disableHostnameVerification(baseFactory.createSocket(host, port));
-          }
-
-          @Override
-          public java.net.Socket createSocket(String host, int port, java.net.InetAddress localHost, int localPort)
-              throws java.io.IOException {
-            return disableHostnameVerification(baseFactory.createSocket(host, port, localHost, localPort));
-          }
-
-          @Override
-          public java.net.Socket createSocket(java.net.InetAddress host, int port) throws java.io.IOException {
-            return disableHostnameVerification(baseFactory.createSocket(host, port));
-          }
-
-          @Override
-          public java.net.Socket createSocket(java.net.InetAddress address, int port,
-              java.net.InetAddress localAddress, int localPort) throws java.io.IOException {
-            return disableHostnameVerification(baseFactory.createSocket(address, port, localAddress, localPort));
-          }
-        };
-
-        clientSap = new ClientSap(baseFactory);
+        clientSap = new ClientSap(sslContext.getSocketFactory());
       } catch (Exception e) {
         System.out.println("Unable to initialize TLS: " + e.getMessage());
         return;
