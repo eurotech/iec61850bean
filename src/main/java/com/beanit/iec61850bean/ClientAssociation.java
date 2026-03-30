@@ -46,6 +46,7 @@ import com.beanit.iec61850bean.internal.mms.asn1.GetNamedVariableListAttributesR
 import com.beanit.iec61850bean.internal.mms.asn1.GetNamedVariableListAttributesResponse;
 import com.beanit.iec61850bean.internal.mms.asn1.GetVariableAccessAttributesRequest;
 import com.beanit.iec61850bean.internal.mms.asn1.Identifier;
+import com.beanit.iec61850bean.internal.mms.asn1.InformationReport;
 import com.beanit.iec61850bean.internal.mms.asn1.InitiateRequestPDU;
 import com.beanit.iec61850bean.internal.mms.asn1.InitiateResponsePDU;
 import com.beanit.iec61850bean.internal.mms.asn1.Integer16;
@@ -1983,14 +1984,23 @@ public final class ClientAssociation {
           }
 
           if (decodedResponsePdu.getUnconfirmedPDU() != null) {
-            if (decodedResponsePdu
-                    .getUnconfirmedPDU()
-                    .getService()
-                    .getInformationReport()
+            final InformationReport r = decodedResponsePdu
+            .getUnconfirmedPDU()
+            .getService()
+            .getInformationReport();
+            if (r
                     .getVariableAccessSpecification()
                     .getListOfVariable()
                 != null) {
-              // Discarding LastApplError Report
+                  Thread t1 =
+                  new Thread(
+                      new Runnable() {
+                        @Override
+                        public void run() {
+                          reportListener.newRawReport(r);
+                        }
+                      });
+              t1.start();
             } else {
               if (reportListener != null) {
                 final Report report = processReport(decodedResponsePdu);

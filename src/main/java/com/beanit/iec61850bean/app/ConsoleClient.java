@@ -38,11 +38,23 @@ import com.beanit.iec61850bean.internal.cli.CliParseException;
 import com.beanit.iec61850bean.internal.cli.CliParser;
 import com.beanit.iec61850bean.internal.cli.IntCliParameter;
 import com.beanit.iec61850bean.internal.cli.StringCliParameter;
+import com.beanit.iec61850bean.internal.mms.asn1.InformationReport;
+
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.security.KeyStore;
+import java.security.SecureRandom;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLParameters;
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.KeyManagerFactory;
 import java.util.ArrayList;
 import java.util.List;
+
+import javax.net.ssl.SSLSocketFactory;
 
 public class ConsoleClient {
 
@@ -59,20 +71,19 @@ public class ConsoleClient {
   private static final String REPORTING_KEY = "r";
   private static final String REPORTING_KEY_DESCRIPTION = "configure reporting";
 
-  private static final StringCliParameter hostParam =
-      new CliParameterBuilder("-h")
-          .setDescription("The IP/domain address of the server you want to access.")
-          .setMandatory()
-          .buildStringParameter("host");
-  private static final IntCliParameter portParam =
-      new CliParameterBuilder("-p")
-          .setDescription("The port to connect to.")
-          .buildIntParameter("port", 102);
-  private static final StringCliParameter modelFileParam =
-      new CliParameterBuilder("-m")
-          .setDescription(
-              "The file name of the SCL file to read the model from. If this parameter is omitted the model will be read from the server device after connection.")
-          .buildStringParameter("model-file");
+  private static final StringCliParameter hostParam = new CliParameterBuilder("-h")
+      .setDescription("The IP/domain address of the server you want to access.").setMandatory()
+      .buildStringParameter("host");
+  private static final IntCliParameter portParam = new CliParameterBuilder("-p")
+      .setDescription("The port to connect to.").buildIntParameter("port", 102);
+  private static final StringCliParameter modelFileParam = new CliParameterBuilder("-m").setDescription(
+      "The file name of the SCL file to read the model from. If this parameter is omitted the model will be read from the server device after connection.")
+      .buildStringParameter("model-file");
+  private static final StringCliParameter keystorePath = new CliParameterBuilder("-k")
+      .setDescription("Path to a keystore file for enabling TLS").buildStringParameter("keystore-file");
+  private static final StringCliParameter keystorePassword = new CliParameterBuilder("-kp")
+      .setDescription("Keystore password").buildStringParameter("keystore-password");
+
   private static final ActionProcessor actionProcessor = new ActionProcessor(new ActionExecutor());
   private static volatile ClientAssociation association;
   private static ServerModel serverModel;
@@ -83,10 +94,11 @@ public class ConsoleClient {
     cliParameters.add(hostParam);
     cliParameters.add(portParam);
     cliParameters.add(modelFileParam);
+    cliParameters.add(keystorePath);
+    cliParameters.add(keystorePassword);
 
-    CliParser cliParser =
-        new CliParser(
-            "iec61850bean-console-client", "A client application to access IEC 61850 MMS servers.");
+    CliParser cliParser = new CliParser("iec61850bean-console-client",
+        "A client application to access IEC 61850 MMS servers.");
     cliParser.addParameters(cliParameters);
 
     try {
@@ -105,23 +117,104 @@ public class ConsoleClient {
       return;
     }
 
-    ClientSap clientSap = new ClientSap();
+    ClientSap clientSap;
+
+    if (keystorePath.isSelected()) {
+      try {
+        KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+        try (FileInputStream fis = new FileInputStream(keystorePath.getValue())) {
+          char[] pwd = keystorePassword.isSelected() ? keystorePassword.getValue().toCharArray() : null;
+          keyStore.load(fis, pwd);
+        }
+
+        TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+        tmf.init(keyStore);
+
+        KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+        // use the keystore password for the key manager (may be null)
+        char[] pwd = keystorePassword.isSelected() ? keystorePassword.getValue().toCharArray() : null;
+        kmf.init(keyStore, pwd);
+
+        SSLContext sslContext = SSLContext.getInstance("TLS");
+        sslContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), new SecureRandom());
+
+        final javax.net.ssl.SSLSocketFactory baseFactory = sslContext.getSocketFactory();
+
+        javax.net.ssl.SSLSocketFactory wrappedFactory = new javax.net.ssl.SSLSocketFactory() {
+          @Override
+          public String[] getDefaultCipherSuites() {
+            return baseFactory.getDefaultCipherSuites();
+          }
+
+          @Override
+          public String[] getSupportedCipherSuites() {
+            return baseFactory.getSupportedCipherSuites();
+          }
+
+          private java.net.Socket disableHostnameVerification(java.net.Socket socket) {
+            if (socket instanceof SSLSocket) {
+              SSLSocket sslSocket = (SSLSocket) socket;
+              SSLParameters params = sslSocket.getSSLParameters();
+              // disable endpoint identification (hostname verification)
+              params.setEndpointIdentificationAlgorithm(null);
+              sslSocket.setSSLParameters(params);
+            }
+            return socket;
+          }
+
+          @Override
+          public java.net.Socket createSocket(java.net.Socket s, String host, int port, boolean autoClose)
+              throws java.io.IOException {
+            return disableHostnameVerification(baseFactory.createSocket(s, host, port, autoClose));
+          }
+
+          @Override
+          public java.net.Socket createSocket(String host, int port) throws java.io.IOException {
+            return disableHostnameVerification(baseFactory.createSocket(host, port));
+          }
+
+          @Override
+          public java.net.Socket createSocket(String host, int port, java.net.InetAddress localHost, int localPort)
+              throws java.io.IOException {
+            return disableHostnameVerification(baseFactory.createSocket(host, port, localHost, localPort));
+          }
+
+          @Override
+          public java.net.Socket createSocket(java.net.InetAddress host, int port) throws java.io.IOException {
+            return disableHostnameVerification(baseFactory.createSocket(host, port));
+          }
+
+          @Override
+          public java.net.Socket createSocket(java.net.InetAddress address, int port,
+              java.net.InetAddress localAddress, int localPort) throws java.io.IOException {
+            return disableHostnameVerification(baseFactory.createSocket(address, port, localAddress, localPort));
+          }
+        };
+
+        clientSap = new ClientSap(baseFactory);
+      } catch (Exception e) {
+        System.out.println("Unable to initialize TLS: " + e.getMessage());
+        return;
+      }
+    } else {
+      clientSap = new ClientSap();
+    }
 
     try {
       association = clientSap.associate(address, portParam.getValue(), null, new EventListener());
     } catch (IOException e) {
-      System.out.println("Unable to connect to remote host.");
+      System.out.println("Unable to connect to remote host:" + e.getMessage());
+      e.printStackTrace();
       return;
     }
 
-    Runtime.getRuntime()
-        .addShutdownHook(
-            new Thread() {
-              @Override
-              public void run() {
-                association.close();
-              }
-            });
+    Runtime.getRuntime().addShutdownHook(new Thread() {
+
+      @Override
+      public void run() {
+        association.close();
+      }
+    });
 
     System.out.println("successfully connected");
 
@@ -185,6 +278,11 @@ public class ConsoleClient {
       }
       actionProcessor.close();
     }
+
+    @Override
+    public void newRawReport(InformationReport report) {
+      System.out.println("raw report: " + report);
+    }
   }
 
   private static class ActionExecutor implements ActionListener {
@@ -205,193 +303,177 @@ public class ConsoleClient {
             }
             System.out.println("done");
             break;
-          case GET_DATA_VALUES_KEY:
-            {
-              if (serverModel == null) {
-                System.out.println("You have to retrieve the model before reading data.");
-                return;
+          case GET_DATA_VALUES_KEY: {
+            if (serverModel == null) {
+              System.out.println("You have to retrieve the model before reading data.");
+              return;
+            }
+
+            FcModelNode fcModelNode = askForFcModelNode();
+
+            System.out.println("Sending GetDataValues request...");
+
+            try {
+              association.getDataValues(fcModelNode);
+            } catch (ServiceError e) {
+              System.out.println("Service error: " + e.getMessage());
+              return;
+            } catch (IOException e) {
+              System.out.println("Fatal error: " + e.getMessage());
+              return;
+            }
+
+            System.out.println("Successfully read data.");
+            System.out.println(fcModelNode);
+
+            break;
+          }
+          case CREATE_DATA_SET_KEY: {
+            System.out.println("Enter the reference of the data set to create (e.g. myld/MYLN0.dataset1): ");
+            String reference = actionProcessor.getReader().readLine();
+
+            System.out.println("How many entries shall the data set have: ");
+            String numberOfEntriesString = actionProcessor.getReader().readLine();
+            int numDataSetEntries = Integer.parseInt(numberOfEntriesString);
+
+            List<FcModelNode> dataSetMembers = new ArrayList<>();
+            for (int i = 0; i < numDataSetEntries; i++) {
+              dataSetMembers.add(askForFcModelNode());
+            }
+
+            DataSet dataSet = new DataSet(reference, dataSetMembers);
+            System.out.print("Creating data set..");
+            association.createDataSet(dataSet);
+            System.out.println("done");
+
+            break;
+          }
+          case DELETE_DATA_SET_KEY: {
+            System.out.println("Enter the reference of the data set to delete (e.g. myld/MYLN0.dataset1): ");
+            String reference = actionProcessor.getReader().readLine();
+
+            DataSet dataSet = serverModel.getDataSet(reference);
+            if (dataSet == null) {
+              throw new ActionException("Unable to find data set with the given reference.");
+            }
+            System.out.print("Deleting data set..");
+            association.deleteDataSet(dataSet);
+            System.out.println("done");
+
+            break;
+          }
+          case REPORTING_KEY: {
+            System.out.println("Enter the URCB reference: ");
+            String reference = actionProcessor.getReader().readLine();
+            Urcb urcb = serverModel.getUrcb(reference);
+            if (urcb == null) {
+              Brcb brcb = serverModel.getBrcb(reference);
+              if (brcb != null) {
+                throw new ActionException(
+                    "Though buffered reporting is supported by the library it is not yet supported by the console application.");
               }
+              throw new ActionException("Unable to find RCB with the given reference.");
+            }
 
-              FcModelNode fcModelNode = askForFcModelNode();
-
-              System.out.println("Sending GetDataValues request...");
-
+            while (true) {
+              association.getRcbValues(urcb);
+              System.out.println();
+              System.out.println(urcb);
+              System.out.println();
+              System.out.println("What do you want to configure?");
+              System.out.println("1 - reserve");
+              System.out.println("2 - cancel reservation");
+              System.out.println("3 - enable");
+              System.out.println("4 - disable");
+              System.out.println("5 - set data set");
+              System.out.println("6 - set trigger options");
+              System.out.println("7 - set integrity period");
+              System.out.println("8 - send general interrogation");
+              System.out.println("0 - quit");
               try {
-                association.getDataValues(fcModelNode);
-              } catch (ServiceError e) {
-                System.out.println("Service error: " + e.getMessage());
-                return;
-              } catch (IOException e) {
-                System.out.println("Fatal error: " + e.getMessage());
-                return;
-              }
-
-              System.out.println("Successfully read data.");
-              System.out.println(fcModelNode);
-
-              break;
-            }
-          case CREATE_DATA_SET_KEY:
-            {
-              System.out.println(
-                  "Enter the reference of the data set to create (e.g. myld/MYLN0.dataset1): ");
-              String reference = actionProcessor.getReader().readLine();
-
-              System.out.println("How many entries shall the data set have: ");
-              String numberOfEntriesString = actionProcessor.getReader().readLine();
-              int numDataSetEntries = Integer.parseInt(numberOfEntriesString);
-
-              List<FcModelNode> dataSetMembers = new ArrayList<>();
-              for (int i = 0; i < numDataSetEntries; i++) {
-                dataSetMembers.add(askForFcModelNode());
-              }
-
-              DataSet dataSet = new DataSet(reference, dataSetMembers);
-              System.out.print("Creating data set..");
-              association.createDataSet(dataSet);
-              System.out.println("done");
-
-              break;
-            }
-          case DELETE_DATA_SET_KEY:
-            {
-              System.out.println(
-                  "Enter the reference of the data set to delete (e.g. myld/MYLN0.dataset1): ");
-              String reference = actionProcessor.getReader().readLine();
-
-              DataSet dataSet = serverModel.getDataSet(reference);
-              if (dataSet == null) {
-                throw new ActionException("Unable to find data set with the given reference.");
-              }
-              System.out.print("Deleting data set..");
-              association.deleteDataSet(dataSet);
-              System.out.println("done");
-
-              break;
-            }
-          case REPORTING_KEY:
-            {
-              System.out.println("Enter the URCB reference: ");
-              String reference = actionProcessor.getReader().readLine();
-              Urcb urcb = serverModel.getUrcb(reference);
-              if (urcb == null) {
-                Brcb brcb = serverModel.getBrcb(reference);
-                if (brcb != null) {
-                  throw new ActionException(
-                      "Though buffered reporting is supported by the library it is not yet supported by the console application.");
-                }
-                throw new ActionException("Unable to find RCB with the given reference.");
-              }
-
-              while (true) {
-                association.getRcbValues(urcb);
-                System.out.println();
-                System.out.println(urcb);
-                System.out.println();
-                System.out.println("What do you want to configure?");
-                System.out.println("1 - reserve");
-                System.out.println("2 - cancel reservation");
-                System.out.println("3 - enable");
-                System.out.println("4 - disable");
-                System.out.println("5 - set data set");
-                System.out.println("6 - set trigger options");
-                System.out.println("7 - set integrity period");
-                System.out.println("8 - send general interrogation");
-                System.out.println("0 - quit");
-                try {
-                  int rcbAction = Integer.parseInt(actionProcessor.getReader().readLine());
-                  switch (rcbAction) {
-                    case 0:
-                      return;
-                    case 1:
-                      System.out.print("Reserving RCB..");
-                      association.reserveUrcb(urcb);
-                      System.out.println("done");
-                      break;
-                    case 2:
-                      System.out.print("Canceling RCB reservation..");
-                      association.cancelUrcbReservation(urcb);
-                      System.out.println("done");
-                      break;
-                    case 3:
-                      System.out.print("Enabling reporting..");
-                      association.enableReporting(urcb);
-                      System.out.println("done");
-                      break;
-                    case 4:
-                      System.out.print("Disabling reporting..");
-                      association.disableReporting(urcb);
-                      System.out.println("done");
-                      break;
-                    case 5:
-                      {
-                        System.out.print("Set data set reference:");
-                        String dataSetReference = actionProcessor.getReader().readLine();
-                        urcb.getDatSet().setValue(dataSetReference);
-                        List<ServiceError> serviceErrors =
-                            association.setRcbValues(
-                                urcb, false, true, false, false, false, false, false, false);
-                        if (serviceErrors.get(0) != null) {
-                          throw serviceErrors.get(0);
-                        }
-                        System.out.println("done");
-                        break;
-                      }
-                    case 6:
-                      {
-                        System.out.print(
-                            "Set the trigger options (data change, data update, quality change, interity, GI):");
-                        String triggerOptionsString = actionProcessor.getReader().readLine();
-                        String[] triggerOptionsStrings = triggerOptionsString.split(",", -1);
-                        BdaTriggerConditions triggerOptions = urcb.getTrgOps();
-                        triggerOptions.setDataChange(
-                            Boolean.parseBoolean(triggerOptionsStrings[0]));
-                        triggerOptions.setDataUpdate(
-                            Boolean.parseBoolean(triggerOptionsStrings[1]));
-                        triggerOptions.setQualityChange(
-                            Boolean.parseBoolean(triggerOptionsStrings[2]));
-                        triggerOptions.setIntegrity(Boolean.parseBoolean(triggerOptionsStrings[3]));
-                        triggerOptions.setGeneralInterrogation(
-                            Boolean.parseBoolean(triggerOptionsStrings[4]));
-                        List<ServiceError> serviceErrors =
-                            association.setRcbValues(
-                                urcb, false, false, false, false, true, false, false, false);
-                        if (serviceErrors.get(0) != null) {
-                          throw serviceErrors.get(0);
-                        }
-                        System.out.println("done");
-                        break;
-                      }
-                    case 7:
-                      {
-                        System.out.print("Specify integrity period in ms:");
-                        String integrityPeriodString = actionProcessor.getReader().readLine();
-                        urcb.getIntgPd().setValue(Long.parseLong(integrityPeriodString));
-                        List<ServiceError> serviceErrors =
-                            association.setRcbValues(
-                                urcb, false, false, false, false, false, true, false, false);
-                        if (serviceErrors.get(0) != null) {
-                          throw serviceErrors.get(0);
-                        }
-                        System.out.println("done");
-                        break;
-                      }
-                    case 8:
-                      System.out.print("Sending GI..");
-                      association.startGi(urcb);
-                      System.out.println("done");
-                      break;
-                    default:
-                      System.err.println("Unknown option.");
-                      break;
+                int rcbAction = Integer.parseInt(actionProcessor.getReader().readLine());
+                switch (rcbAction) {
+                  case 0:
+                    return;
+                  case 1:
+                    System.out.print("Reserving RCB..");
+                    association.reserveUrcb(urcb);
+                    System.out.println("done");
+                    break;
+                  case 2:
+                    System.out.print("Canceling RCB reservation..");
+                    association.cancelUrcbReservation(urcb);
+                    System.out.println("done");
+                    break;
+                  case 3:
+                    System.out.print("Enabling reporting..");
+                    association.enableReporting(urcb);
+                    System.out.println("done");
+                    break;
+                  case 4:
+                    System.out.print("Disabling reporting..");
+                    association.disableReporting(urcb);
+                    System.out.println("done");
+                    break;
+                  case 5: {
+                    System.out.print("Set data set reference:");
+                    String dataSetReference = actionProcessor.getReader().readLine();
+                    urcb.getDatSet().setValue(dataSetReference);
+                    List<ServiceError> serviceErrors = association.setRcbValues(urcb, false, true, false, false, false,
+                        false, false, false);
+                    if (serviceErrors.get(0) != null) {
+                      throw serviceErrors.get(0);
+                    }
+                    System.out.println("done");
+                    break;
                   }
-                } catch (ServiceError e) {
-                  System.err.println("Service error: " + e.getMessage());
-                } catch (NumberFormatException e) {
-                  System.err.println("Cannot parse number: " + e.getMessage());
+                  case 6: {
+                    System.out
+                        .print("Set the trigger options (data change, data update, quality change, interity, GI):");
+                    String triggerOptionsString = actionProcessor.getReader().readLine();
+                    String[] triggerOptionsStrings = triggerOptionsString.split(",", -1);
+                    BdaTriggerConditions triggerOptions = urcb.getTrgOps();
+                    triggerOptions.setDataChange(Boolean.parseBoolean(triggerOptionsStrings[0]));
+                    triggerOptions.setDataUpdate(Boolean.parseBoolean(triggerOptionsStrings[1]));
+                    triggerOptions.setQualityChange(Boolean.parseBoolean(triggerOptionsStrings[2]));
+                    triggerOptions.setIntegrity(Boolean.parseBoolean(triggerOptionsStrings[3]));
+                    triggerOptions.setGeneralInterrogation(Boolean.parseBoolean(triggerOptionsStrings[4]));
+                    List<ServiceError> serviceErrors = association.setRcbValues(urcb, false, false, false, false, true,
+                        false, false, false);
+                    if (serviceErrors.get(0) != null) {
+                      throw serviceErrors.get(0);
+                    }
+                    System.out.println("done");
+                    break;
+                  }
+                  case 7: {
+                    System.out.print("Specify integrity period in ms:");
+                    String integrityPeriodString = actionProcessor.getReader().readLine();
+                    urcb.getIntgPd().setValue(Long.parseLong(integrityPeriodString));
+                    List<ServiceError> serviceErrors = association.setRcbValues(urcb, false, false, false, false, false,
+                        true, false, false);
+                    if (serviceErrors.get(0) != null) {
+                      throw serviceErrors.get(0);
+                    }
+                    System.out.println("done");
+                    break;
+                  }
+                  case 8:
+                    System.out.print("Sending GI..");
+                    association.startGi(urcb);
+                    System.out.println("done");
+                    break;
+                  default:
+                    System.err.println("Unknown option.");
+                    break;
                 }
+              } catch (ServiceError e) {
+                System.err.println("Service error: " + e.getMessage());
+              } catch (NumberFormatException e) {
+                System.err.println("Cannot parse number: " + e.getMessage());
               }
             }
+          }
           default:
             break;
         }
@@ -418,8 +500,7 @@ public class ConsoleClient {
       }
 
       if (!(modelNode instanceof FcModelNode)) {
-        throw new ActionException(
-            "The given model node is not a functionally constraint model node.");
+        throw new ActionException("The given model node is not a functionally constraint model node.");
       }
 
       FcModelNode fcModelNode = (FcModelNode) modelNode;
