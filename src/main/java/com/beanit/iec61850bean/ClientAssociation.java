@@ -85,9 +85,12 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 
 /**
  * Represents an association/connection to an IEC 61850 MMS server. An instance of <code>
@@ -1953,9 +1956,19 @@ public final class ClientAssociation {
     private final ByteBuffer pduBuffer;
     private Integer expectedResponseId;
     private IOException lastIOException = null;
+    private final ExecutorService dispatcher = Executors.newSingleThreadExecutor();
 
     public ClientReceiver(int maxMmsPduSize) {
       pduBuffer = ByteBuffer.allocate(maxMmsPduSize + 400);
+    }
+
+    private void dispatch(final Consumer<ClientEventListener> consumer) {
+
+      final ClientEventListener l = reportListener;
+  
+      if (l != null) {
+        dispatcher.submit(() -> consumer.accept(l));
+      }
     }
 
     @Override
@@ -1992,28 +2005,12 @@ public final class ClientAssociation {
                     .getVariableAccessSpecification()
                     .getListOfVariable()
                 != null) {
-                  Thread t1 =
-                  new Thread(
-                      new Runnable() {
-                        @Override
-                        public void run() {
-                          reportListener.newRawReport(r);
-                        }
-                      });
-              t1.start();
+                  dispatch(l -> l.newRawReport(r));
             } else {
               if (reportListener != null) {
                 final Report report = processReport(decodedResponsePdu);
 
-                Thread t1 =
-                    new Thread(
-                        new Runnable() {
-                          @Override
-                          public void run() {
-                            reportListener.newReport(report);
-                          }
-                        });
-                t1.start();
+                dispatch(l -> l.newReport(report));
               } else {
                 // discarding report because no ReportListener was registered.
               }
@@ -2078,6 +2075,8 @@ public final class ClientAssociation {
         close(e);
       } catch (Exception e) {
         close(new IOException("unexpected exception while receiving", e));
+      } finally {
+        dispatcher.shutdown();
       }
     }
 
@@ -2091,17 +2090,7 @@ public final class ClientAssociation {
           closed = true;
           acseAssociation.disconnect();
           lastIOException = new IOException("Connection disconnected by client");
-          if (reportListener != null) {
-            Thread t1 =
-                new Thread(
-                    new Runnable() {
-                      @Override
-                      public void run() {
-                        reportListener.associationClosed(lastIOException);
-                      }
-                    });
-            t1.start();
-          }
+          dispatch(l -> l.associationClosed(lastIOException));
 
           MMSpdu mmsPdu = new MMSpdu();
           mmsPdu.setConfirmedRequestPDU(new ConfirmedRequestPDU());
@@ -2120,17 +2109,7 @@ public final class ClientAssociation {
           closed = true;
           acseAssociation.close();
           lastIOException = e;
-          if (reportListener != null) {
-            Thread t1 =
-                new Thread(
-                    new Runnable() {
-                      @Override
-                      public void run() {
-                        reportListener.associationClosed(lastIOException);
-                      }
-                    });
-            t1.start();
-          }
+          dispatch(l -> l.associationClosed(lastIOException));
 
           MMSpdu mmsPdu = new MMSpdu();
           mmsPdu.setConfirmedRequestPDU(new ConfirmedRequestPDU());
