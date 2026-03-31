@@ -15,6 +15,8 @@ package com.beanit.iec61850bean;
 
 import java.io.IOException;
 
+import com.beanit.iec61850bean.internal.mms.asn1.InformationReport;
+
 /**
  * The listener interface for receiving incoming reports and association closed events. A listener
  * is registered through the {@link ClientSap#associate(java.net.InetAddress, int, String,
@@ -29,16 +31,20 @@ public interface ClientEventListener {
    * thread safe as it can be called in parallel if a new report arrives while an old one is still
    * being processed.
    *
-   * @param report the report that arrived.
+   * @param report
+   *          the report that arrived.
    */
   void newReport(Report report);
+
+  default void newRawReport(InformationReport report) {}
 
   /**
    * Invoked when an IOException occurred for the association. An IOException implies that the
    * ClientAssociation that feeds this listener was automatically closed and can no longer be used
    * to receive reports.
    *
-   * @param e the exception that occured.
+   * @param e
+   *          the exception that occured.
    */
   void associationClosed(IOException e);
 }
