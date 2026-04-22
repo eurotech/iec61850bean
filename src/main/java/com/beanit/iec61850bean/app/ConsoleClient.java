@@ -13,6 +13,31 @@
  */
 package com.beanit.iec61850bean.app;
 
+import static org.junit.jupiter.api.Assertions.fail;
+
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.security.KeyStore;
+import java.security.SecureRandom;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Optional;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.regex.Pattern;
+
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManagerFactory;
+
+import com.beanit.iec61850bean.BasicDataAttribute;
+import com.beanit.iec61850bean.BdaInt8;
+import com.beanit.iec61850bean.BdaInt8U;
+import com.beanit.iec61850bean.BdaTimestamp;
 import com.beanit.iec61850bean.BdaTriggerConditions;
 import com.beanit.iec61850bean.Brcb;
 import com.beanit.iec61850bean.ClientAssociation;
@@ -40,22 +65,6 @@ import com.beanit.iec61850bean.internal.cli.IntCliParameter;
 import com.beanit.iec61850bean.internal.cli.StringCliParameter;
 import com.beanit.iec61850bean.internal.mms.asn1.InformationReport;
 
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.security.KeyStore;
-import java.security.SecureRandom;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLParameters;
-import javax.net.ssl.SSLSocket;
-import javax.net.ssl.TrustManagerFactory;
-import javax.net.ssl.KeyManagerFactory;
-import java.util.ArrayList;
-import java.util.List;
-
-import javax.net.ssl.SSLSocketFactory;
-
 public class ConsoleClient {
 
   private static final String PRINT_MODEL_KEY = "m";
@@ -70,6 +79,10 @@ public class ConsoleClient {
   private static final String DELETE_DATA_SET_KEY_DESCRIPTION = "delete data set";
   private static final String REPORTING_KEY = "r";
   private static final String REPORTING_KEY_DESCRIPTION = "configure reporting";
+  private static final String COMMAND_KEY = "c";
+  private static final String COMMAND_KEY_DESCRIPTION = "execute SBOw command";
+
+  protected static final Pattern REFERENCE_DELIMITERS = Pattern.compile("[./]");
 
   private static final StringCliParameter hostParam = new CliParameterBuilder("-h")
       .setDescription("The IP/domain address of the server you want to access.").setMandatory()
@@ -201,6 +214,7 @@ public class ConsoleClient {
     actionProcessor.addAction(new Action(CREATE_DATA_SET_KEY, CREATE_DATA_SET_KEY_DESCRIPTION));
     actionProcessor.addAction(new Action(DELETE_DATA_SET_KEY, DELETE_DATA_SET_KEY_DESCRIPTION));
     actionProcessor.addAction(new Action(REPORTING_KEY, REPORTING_KEY_DESCRIPTION));
+    actionProcessor.addAction(new Action(COMMAND_KEY, COMMAND_KEY_DESCRIPTION));
 
     actionProcessor.start();
   }
@@ -421,6 +435,79 @@ public class ConsoleClient {
               }
             }
           }
+          case COMMAND_KEY: {
+            // if (serverModel == null) {
+            // System.out.println("You have to retrieve the model before issuing a
+            // command.");
+            // return;
+            // }
+
+            // // FcModelNode fcModelNode = askForFcModelNode();
+
+            // System.out.println("Sending command...");
+
+            // System.out.println("Enter the reference of the data set to create (e.g.
+            // myld/MYLN0.dataset1): ");
+            // String reference = actionProcessor.getReader().readLine();
+
+            // // System.out.println("How many entries shall the data set have: ");
+            // // String numberOfEntriesString = actionProcessor.getReader().readLine();
+            // // int numDataSetEntries = Integer.parseInt(numberOfEntriesString);
+
+            // List<FcModelNode> dataSetMembers = new ArrayList<>();
+            // // for (int i = 0; i < numDataSetEntries; i++) {
+            // dataSetMembers.add(askForFcModelNode());
+            // // }
+
+            // DataSet dataSet = new DataSet(reference, dataSetMembers);
+            // // System.out.print("Creating data set..");
+            // // association.createDataSet(dataSet);
+            // // System.out.println("done");
+
+            // try {
+            // association.setDataSetValues(dataSet); // SELECT on SBOW
+            // // association.operate( fcModelNode, null); //OPERATE on OPER
+            // } catch (ServiceError e) {
+            // System.out.println("Service error: " + e.getMessage());
+            // return;
+            // } catch (IOException e) {
+            // System.out.println("Fatal error: " + e.getMessage());
+            // return;
+            // }
+
+            // System.out.println("Successfully sent command.");
+            // // System.out.println(fcModelNode);
+
+            // FcModelNode fcModelNode = askForFcModelNode();
+            final WriteValue<FcModelNode> result = new WriteValue<>("CCI016_01LD_Plant/WlimDWMX1.Mod",
+                FcModelNode.class, Fc.CO) //
+                .withAttribute("SBOw.ctlVal", BdaInt8.class, BdaInt8::setValue, (byte) 3) //
+                .withAttribute("SBOw.T", BdaTimestamp.class, BdaTimestamp::setInstant,
+                    Instant.ofEpochSecond(1773062849)) //
+                .withAttribute("SBOw.origin.orCat", BdaInt8.class, BdaInt8::setValue, (byte) 8) //
+                .withAttribute("SBOw.ctlNum", BdaInt8U.class, BdaInt8U::setValue, (short) 0);
+
+            final WriteValue<FcModelNode> result1 = new WriteValue<>("CCI016_01LD_Plant/WlimDWMX1.Mod",
+                FcModelNode.class, Fc.CO) //
+                .withAttribute("Oper.ctlVal", BdaInt8.class, BdaInt8::setValue, (byte) 3) //
+                .withAttribute("Oper.T", BdaTimestamp.class, BdaTimestamp::setInstant,
+                    Instant.ofEpochSecond(1773062849)) //
+                .withAttribute("Oper.origin.orCat", BdaInt8.class, BdaInt8::setValue, (byte) 8) //
+                .withAttribute("Oper.ctlNum", BdaInt8U.class, BdaInt8U::setValue, (short) 0);
+            try {
+              result.write();
+              Thread.sleep(1000);
+              association.operate(result1.attribute);
+            } catch (ServiceError e) {
+              System.out.println("Service error: " + e.getMessage());
+              return;
+            } catch (IOException e) {
+              System.out.println("Fatal error: " + e.getMessage());
+              return;
+            }
+
+            break;
+          }
           default:
             break;
         }
@@ -429,6 +516,103 @@ public class ConsoleClient {
       }
     }
 
+    //
+
+    protected class WriteValue<T extends FcModelNode> {
+
+      private final T attribute;
+
+      public WriteValue(final String reference, final Class<T> ty) {
+        this.attribute = ty.cast(retrieveFcModelNode(reference));
+      }
+
+      public WriteValue(final String reference, final Class<T> ty, final Fc fc) {
+        this.attribute = ty.cast(retrieveFcModelNode(reference, fc));
+      }
+
+      private WriteValue(final T attr) {
+        this.attribute = attr;
+      }
+
+      public <U> WriteValue<T> withField(final BiConsumer<T, U> setter, final U value) {
+        setter.accept(this.attribute, value);
+        return this;
+      }
+
+      public <U extends BasicDataAttribute, V> WriteValue<T> withAttribute(final String path, final Class<U> ty,
+          final BiConsumer<U, V> setter, final V value) {
+        final ModelNode node = lookup(this.attribute, path)
+            .orElseThrow(() -> new IllegalStateException("node at path " + path + " not found"));
+        new WriteValue<>(ty.cast(node)).withField(setter, value);
+        return this;
+      }
+
+      public <U> WriteValue<T> with(final Consumer<T> setter) {
+        setter.accept(this.attribute);
+        return this;
+      }
+
+      public void write() throws ServiceError, IOException {
+        association.setDataValues(this.attribute);
+      }
+    }
+
+    protected FcModelNode retrieveFcModelNode(final String reference) {
+
+      return retrieveFcModelNode(reference, Fc.CF);
+    }
+
+    protected FcModelNode retrieveFcModelNode(final String reference, final Fc fc) {
+
+      final FcModelNode asFcModelNode = retrieveNode(reference, FcModelNode.class, fc);
+
+      try {
+        association.getDataValues(asFcModelNode);
+      } catch (Exception e) {
+        fail("cannot read value from " + reference + ' ' + e);
+      }
+
+      return asFcModelNode;
+    }
+
+    protected <T> T retrieveNode(final String reference, final Class<T> clazz, final Fc fc) {
+      final Optional<ModelNode> node = retrieveNode(reference, fc);
+
+      return node.filter(clazz::isInstance).map(clazz::cast).orElseThrow(() -> new IllegalStateException(
+          "node " + reference + ' ' + node + " is not a " + clazz.getSimpleName()));
+    }
+
+    protected Optional<ModelNode> retrieveNode(final String reference, final Fc fc) {
+      return Optional.ofNullable(serverModel.findModelNode(reference, fc));
+    }
+
+    protected Optional<ModelNode> lookup(final ModelNode parent, final String path) {
+      final Iterator<String> iter = splitRefernce(path);
+
+      Optional<ModelNode> node = Optional.ofNullable(parent);
+
+      while (iter.hasNext() && node.isPresent()) {
+        final String next = iter.next();
+
+        final Optional<ModelNode> nextNode = Optional.ofNullable(node.get().getChild(next));
+
+        if (!nextNode.isPresent()) {
+          // logger.info("node not found: current: {}, next: {}", node, next);
+          System.out.println("node not found: current: " + node + ", next: " + next);
+          return Optional.empty();
+        }
+
+        node = nextNode;
+      }
+
+      return node;
+    }
+
+    protected static Iterator<String> splitRefernce(final String ref) {
+      return REFERENCE_DELIMITERS.splitAsStream(ref).iterator();
+    }
+
+    //
     private FcModelNode askForFcModelNode() throws IOException, ActionException {
       System.out.println("Enter reference (e.g. myld/MYLN0.do.da.bda): ");
       String reference = actionProcessor.getReader().readLine();

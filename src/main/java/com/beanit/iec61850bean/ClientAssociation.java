@@ -15,6 +15,25 @@ package com.beanit.iec61850bean;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.net.InetAddress;
+import java.nio.ByteBuffer;
+import java.text.ParseException;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
+
 import com.beanit.asn1bean.ber.ReverseByteArrayOutputStream;
 import com.beanit.asn1bean.ber.types.BerInteger;
 import com.beanit.asn1bean.ber.types.BerNull;
@@ -73,42 +92,28 @@ import com.beanit.josistack.AcseAssociation;
 import com.beanit.josistack.ByteBufferInputStream;
 import com.beanit.josistack.ClientAcseSap;
 import com.beanit.josistack.DecodingException;
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.net.InetAddress;
-import java.nio.ByteBuffer;
-import java.text.ParseException;
-import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.List;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.function.Consumer;
 
 /**
- * Represents an association/connection to an IEC 61850 MMS server. An instance of <code>
- * ClientAssociation</code> is obtained using <code>ClientSap</code>. An association object can be
- * used to execute the IEC 61850 ACSI services. Note that not all ACSI services have a corresponding
- * function in this API. For example all GetDirectory and GetDefinition services are covered by
- * <code>retrieveModel()</code>. The control services can be executed by using getDataValues and
+ * Represents an association/connection to an IEC 61850 MMS server. An instance
+ * of <code>
+ * ClientAssociation</code> is obtained using <code>ClientSap</code>. An
+ * association object can be
+ * used to execute the IEC 61850 ACSI services. Note that not all ACSI services
+ * have a corresponding
+ * function in this API. For example all GetDirectory and GetDefinition services
+ * are covered by
+ * <code>retrieveModel()</code>. The control services can be executed by using
+ * getDataValues and
  * setDataValues on the control objects in the data model.
  */
 public final class ClientAssociation {
 
-  private static final Integer16 version = new Integer16(new byte[] {(byte) 0x01, (byte) 0x01});
-  private static final ParameterSupportOptions proposedParameterCbbBitString =
-      new ParameterSupportOptions(new byte[] {0x03, 0x05, (byte) 0xf1, 0x00});
+  private static final Integer16 version = new Integer16(new byte[] { (byte) 0x01, (byte) 0x01 });
+  private static final ParameterSupportOptions proposedParameterCbbBitString = new ParameterSupportOptions(
+      new byte[] { 0x03, 0x05, (byte) 0xf1, 0x00 });
   private final ClientReceiver clientReceiver;
   private final BlockingQueue<MMSpdu> incomingResponses = new LinkedBlockingQueue<>();
-  private final ReverseByteArrayOutputStream reverseOStream =
-      new ReverseByteArrayOutputStream(500, true);
+  private final ReverseByteArrayOutputStream reverseOStream = new ReverseByteArrayOutputStream(500, true);
   ServerModel serverModel;
   private AcseAssociation acseAssociation = null;
   private int responseTimeout;
@@ -228,8 +233,7 @@ public final class ClientAssociation {
       }
     }
 
-    if (mmsResponsePdu.getConfirmedErrorPDU().getServiceError().getAdditionalDescription()
-        != null) {
+    if (mmsResponsePdu.getConfirmedErrorPDU().getServiceError().getAdditionalDescription() != null) {
       throw new ServiceError(
           ServiceError.UNKNOWN,
           "MMS confirmed error. Description: "
@@ -345,8 +349,7 @@ public final class ClientAssociation {
       int proposedDataStructureNestingLevel,
       byte[] servicesSupportedCalling) {
 
-    InitiateRequestPDU.InitRequestDetail initRequestDetail =
-        new InitiateRequestPDU.InitRequestDetail();
+    InitiateRequestPDU.InitRequestDetail initRequestDetail = new InitiateRequestPDU.InitRequestDetail();
     initRequestDetail.setProposedVersionNumber(version);
     initRequestDetail.setProposedParameterCBB(proposedParameterCbbBitString);
     initRequestDetail.setServicesSupportedCalling(
@@ -369,9 +372,12 @@ public final class ClientAssociation {
   }
 
   /**
-   * Gets the response timeout. The response timeout is used whenever a request is sent to the
-   * server. The client will wait for this amount of time for the server's response before throwing
-   * a ServiceError.TIMEOUT. Responses received after the timeout will be automatically discarded.
+   * Gets the response timeout. The response timeout is used whenever a request is
+   * sent to the
+   * server. The client will wait for this amount of time for the server's
+   * response before throwing
+   * a ServiceError.TIMEOUT. Responses received after the timeout will be
+   * automatically discarded.
    *
    * @return the response timeout in milliseconds.
    */
@@ -380,9 +386,12 @@ public final class ClientAssociation {
   }
 
   /**
-   * Sets the response timeout. The response timeout is used whenever a request is sent to the
-   * server. The client will wait for this amount of time for the server's response before throwing
-   * a ServiceError.TIMEOUT. Responses received after the timeout will be automatically discarded.
+   * Sets the response timeout. The response timeout is used whenever a request is
+   * sent to the
+   * server. The client will wait for this amount of time for the server's
+   * response before throwing
+   * a ServiceError.TIMEOUT. Responses received after the timeout will be
+   * automatically discarded.
    *
    * @param timeout the response timeout in milliseconds.
    */
@@ -396,7 +405,8 @@ public final class ClientAssociation {
   }
 
   /**
-   * Gets the ServicesSupported. The 11-byte array of bit flags is available after InitiateResponse
+   * Gets the ServicesSupported. The 11-byte array of bit flags is available after
+   * InitiateResponse
    * is received from the server, otherwise null is returned
    *
    * @return the ServicesSupported byte array, or null.
@@ -486,26 +496,24 @@ public final class ClientAssociation {
       byte[] servicesSupportedCalling)
       throws IOException {
 
-    MMSpdu initiateRequestMMSpdu =
-        constructInitRequestPdu(
-            proposedMaxPduSize,
-            proposedMaxServOutstandingCalling,
-            proposedMaxServOutstandingCalled,
-            proposedDataStructureNestingLevel,
-            servicesSupportedCalling);
+    MMSpdu initiateRequestMMSpdu = constructInitRequestPdu(
+        proposedMaxPduSize,
+        proposedMaxServOutstandingCalling,
+        proposedMaxServOutstandingCalled,
+        proposedDataStructureNestingLevel,
+        servicesSupportedCalling);
 
     ReverseByteArrayOutputStream reverseOStream = new ReverseByteArrayOutputStream(500, true);
     initiateRequestMMSpdu.encode(reverseOStream);
 
     try {
-      acseAssociation =
-          acseSap.associate(
-              address,
-              port,
-              localAddr,
-              localPort,
-              authenticationParameter,
-              reverseOStream.getByteBuffer());
+      acseAssociation = acseSap.associate(
+          address,
+          port,
+          localAddr,
+          localPort,
+          authenticationParameter,
+          reverseOStream.getByteBuffer());
 
       ByteBuffer initResponse = acseAssociation.getAssociateResponseAPdu();
 
@@ -551,15 +559,12 @@ public final class ClientAssociation {
       negotiatedMaxPduSize = initiateResponsePdu.getLocalDetailCalled().intValue();
     }
 
-    int negotiatedMaxServOutstandingCalling =
-        initiateResponsePdu.getNegotiatedMaxServOutstandingCalling().intValue();
-    int negotiatedMaxServOutstandingCalled =
-        initiateResponsePdu.getNegotiatedMaxServOutstandingCalled().intValue();
+    int negotiatedMaxServOutstandingCalling = initiateResponsePdu.getNegotiatedMaxServOutstandingCalling().intValue();
+    int negotiatedMaxServOutstandingCalled = initiateResponsePdu.getNegotiatedMaxServOutstandingCalled().intValue();
 
     int negotiatedDataStructureNestingLevel;
     if (initiateResponsePdu.getNegotiatedDataStructureNestingLevel() != null) {
-      negotiatedDataStructureNestingLevel =
-          initiateResponsePdu.getNegotiatedDataStructureNestingLevel().intValue();
+      negotiatedDataStructureNestingLevel = initiateResponsePdu.getNegotiatedDataStructureNestingLevel().intValue();
     } else {
       negotiatedDataStructureNestingLevel = proposedDataStructureNestingLevel;
     }
@@ -576,14 +581,12 @@ public final class ClientAssociation {
       throw new IOException("Error negotiating parameters");
     }
 
-    int version =
-        initiateResponsePdu.getInitResponseDetail().getNegotiatedVersionNumber().intValue();
+    int version = initiateResponsePdu.getInitResponseDetail().getNegotiatedVersionNumber().intValue();
     if (version != 1) {
       throw new IOException("Unsupported version number was negotiated.");
     }
 
-    servicesSupported =
-        initiateResponsePdu.getInitResponseDetail().getServicesSupportedCalled().value;
+    servicesSupported = initiateResponsePdu.getInitResponseDetail().getServicesSupportedCalled().value;
     if ((servicesSupported[0] & 0x40) != 0x40) {
       throw new IOException("Obligatory services are not supported by the server.");
     }
@@ -599,14 +602,20 @@ public final class ClientAssociation {
   }
 
   /**
-   * Triggers all GetDirectory and GetDefinition ACSI services needed to get the complete server
-   * model. Because in MMS SubDataObjects cannot be distinguished from Constructed Data Attributes
-   * they will always be represented as Constructed Data Attributes in the returned model.
+   * Triggers all GetDirectory and GetDefinition ACSI services needed to get the
+   * complete server
+   * model. Because in MMS SubDataObjects cannot be distinguished from Constructed
+   * Data Attributes
+   * they will always be represented as Constructed Data Attributes in the
+   * returned model.
    *
    * @return the ServerModel that is the root node of the complete server model.
-   * @throws ServiceError if a ServiceError occurs while calling any of the ASCI services.
-   * @throws IOException if a fatal association error occurs. The association object will be closed
-   *     and can no longer be used after this exception is thrown.
+   * @throws ServiceError if a ServiceError occurs while calling any of the ASCI
+   *                      services.
+   * @throws IOException  if a fatal association error occurs. The association
+   *                      object will be closed
+   *                      and can no longer be used after this exception is
+   *                      thrown.
    */
   public ServerModel retrieveModel() throws ServiceError, IOException {
 
@@ -666,8 +675,7 @@ public final class ClientAssociation {
           "Error decoding Get Server Directory Response Pdu");
     }
 
-    List<Identifier> identifiers =
-        confirmedServiceResponse.getGetNameList().getListOfIdentifier().getIdentifier();
+    List<Identifier> identifiers = confirmedServiceResponse.getGetNameList().getListOfIdentifier().getIdentifier();
     ArrayList<String> objectRefs = new ArrayList<>(); // ObjectReference[identifiers.size()];
 
     for (BerVisibleString identifier : identifiers) {
@@ -681,8 +689,7 @@ public final class ClientAssociation {
     List<String> lns = new ArrayList<>();
     String continueAfterRef = "";
     do {
-      ConfirmedServiceRequest serviceRequest =
-          constructGetDirectoryRequest(ld, continueAfterRef, true);
+      ConfirmedServiceRequest serviceRequest = constructGetDirectoryRequest(ld, continueAfterRef, true);
       ConfirmedServiceResponse confirmedServiceResponse = encodeWriteReadDecode(serviceRequest);
       continueAfterRef = decodeGetDirectoryResponse(confirmedServiceResponse, lns);
 
@@ -719,7 +726,8 @@ public final class ClientAssociation {
   }
 
   /**
-   * Decodes an MMS response which contains the structure of a LD and its LNs including names of
+   * Decodes an MMS response which contains the structure of a LD and its LNs
+   * including names of
    * DOs.
    */
   private String decodeGetDirectoryResponse(
@@ -779,8 +787,7 @@ public final class ClientAssociation {
     ObjectName objectName = new ObjectName();
     objectName.setDomainSpecific(domainSpec);
 
-    GetVariableAccessAttributesRequest getVariableAccessAttributesRequest =
-        new GetVariableAccessAttributesRequest();
+    GetVariableAccessAttributesRequest getVariableAccessAttributesRequest = new GetVariableAccessAttributesRequest();
     getVariableAccessAttributesRequest.setName(objectName);
 
     ConfirmedServiceRequest confirmedServiceRequest = new ConfirmedServiceRequest();
@@ -797,15 +804,20 @@ public final class ClientAssociation {
   }
 
   /**
-   * The implementation of the GetDataValues ACSI service. Will send an MMS read request for the
-   * given model node. After a successful return, the Basic Data Attributes of the passed model node
-   * will contain the values read. If one of the Basic Data Attributes cannot be read then none of
+   * The implementation of the GetDataValues ACSI service. Will send an MMS read
+   * request for the
+   * given model node. After a successful return, the Basic Data Attributes of the
+   * passed model node
+   * will contain the values read. If one of the Basic Data Attributes cannot be
+   * read then none of
    * the values will be read and a <code>ServiceError</code> will be thrown.
    *
    * @param modelNode the functionally constrained model node that is to be read.
    * @throws ServiceError if a ServiceError is returned by the server.
-   * @throws IOException if a fatal association error occurs. The association object will be closed
-   *     and can no longer be used after this exception is thrown.
+   * @throws IOException  if a fatal association error occurs. The association
+   *                      object will be closed
+   *                      and can no longer be used after this exception is
+   *                      thrown.
    */
   public void getDataValues(FcModelNode modelNode) throws ServiceError, IOException {
     ConfirmedServiceRequest serviceRequest = constructGetDataValuesRequest(modelNode);
@@ -856,8 +868,7 @@ public final class ClientAssociation {
       files.add(fileInfo);
     }
 
-    boolean moreFollows =
-        (fileDirectoryRes.getMoreFollows() != null) && fileDirectoryRes.getMoreFollows().value;
+    boolean moreFollows = (fileDirectoryRes.getMoreFollows() != null) && fileDirectoryRes.getMoreFollows().value;
 
     return moreFollows;
   }
@@ -865,11 +876,15 @@ public final class ClientAssociation {
   /**
    * Read the file directory of the server
    *
-   * @param directoryName name of a directory or empty string for the root directory
+   * @param directoryName name of a directory or empty string for the root
+   *                      directory
    * @return the list of available
-   * @throws ServiceError if a ServiceError is returned by the server or parsing of response failed.
-   * @throws IOException if a fatal association error occurs. The association object will be closed
-   *     and can no longer be used after this exception is thrown.
+   * @throws ServiceError if a ServiceError is returned by the server or parsing
+   *                      of response failed.
+   * @throws IOException  if a fatal association error occurs. The association
+   *                      object will be closed
+   *                      and can no longer be used after this exception is
+   *                      thrown.
    */
   public List<FileInformation> getFileDirectory(String directoryName)
       throws ServiceError, IOException {
@@ -903,8 +918,7 @@ public final class ClientAssociation {
       ConfirmedServiceRequest confirmedServiceRequest = new ConfirmedServiceRequest();
       confirmedServiceRequest.setFileDirectory(fileDirectoryRequest);
 
-      ConfirmedServiceResponse confirmedServiceResponse =
-          encodeWriteReadDecode(confirmedServiceRequest);
+      ConfirmedServiceResponse confirmedServiceResponse = encodeWriteReadDecode(confirmedServiceRequest);
 
       moreFollows = decodeGetFileDirectoryResponse(confirmedServiceResponse, files);
 
@@ -921,8 +935,10 @@ public final class ClientAssociation {
    *
    * @param filename name of the file to delete
    * @throws ServiceError if a ServiceError is returned by the server
-   * @throws IOException if a fatal association error occurs. The association object will be closed
-   *     and can no longer be used after this exception is thrown.
+   * @throws IOException  if a fatal association error occurs. The association
+   *                      object will be closed
+   *                      and can no longer be used after this exception is
+   *                      thrown.
    */
   public void deleteFile(String filename) throws ServiceError, IOException {
     FileDeleteRequest fileDeleteRequest = new FileDeleteRequest();
@@ -932,8 +948,7 @@ public final class ClientAssociation {
     ConfirmedServiceRequest confirmedServiceRequest = new ConfirmedServiceRequest();
     confirmedServiceRequest.setFileDelete(fileDeleteRequest);
 
-    ConfirmedServiceResponse confirmedServiceResponse =
-        encodeWriteReadDecode(confirmedServiceRequest);
+    ConfirmedServiceResponse confirmedServiceResponse = encodeWriteReadDecode(confirmedServiceRequest);
 
     if (confirmedServiceResponse.getFileDelete() == null) {
       throw new ServiceError(
@@ -954,8 +969,7 @@ public final class ClientAssociation {
     ConfirmedServiceRequest confirmedServiceRequest = new ConfirmedServiceRequest();
     confirmedServiceRequest.setFileOpen(fileOpenRequest);
 
-    ConfirmedServiceResponse confirmedServiceResponse =
-        encodeWriteReadDecode(confirmedServiceRequest);
+    ConfirmedServiceResponse confirmedServiceResponse = encodeWriteReadDecode(confirmedServiceRequest);
 
     if (confirmedServiceResponse.getFileOpen() == null) {
       throw new ServiceError(
@@ -975,8 +989,7 @@ public final class ClientAssociation {
     ConfirmedServiceRequest confirmedServiceRequest = new ConfirmedServiceRequest();
     confirmedServiceRequest.setFileRead(fileReadRequest);
 
-    ConfirmedServiceResponse confirmedServiceResponse =
-        encodeWriteReadDecode(confirmedServiceRequest);
+    ConfirmedServiceResponse confirmedServiceResponse = encodeWriteReadDecode(confirmedServiceRequest);
 
     if (confirmedServiceResponse.getFileRead() == null) {
       throw new ServiceError(
@@ -1009,8 +1022,7 @@ public final class ClientAssociation {
     ConfirmedServiceRequest confirmedServiceRequest = new ConfirmedServiceRequest();
     confirmedServiceRequest.setFileClose(fileCloseRequest);
 
-    ConfirmedServiceResponse confirmedServiceResponse =
-        encodeWriteReadDecode(confirmedServiceRequest);
+    ConfirmedServiceResponse confirmedServiceResponse = encodeWriteReadDecode(confirmedServiceRequest);
 
     if (confirmedServiceResponse.getFileClose() == null) {
       throw new ServiceError(
@@ -1025,8 +1037,10 @@ public final class ClientAssociation {
    * @param filename name of the file to delete
    * @param listener callback handler to receive fall data
    * @throws ServiceError if a ServiceError is returned by the server
-   * @throws IOException if a fatal association error occurs. The association object will be closed
-   *     and can no longer be used after this exception is thrown.
+   * @throws IOException  if a fatal association error occurs. The association
+   *                      object will be closed
+   *                      and can no longer be used after this exception is
+   *                      thrown.
    */
   public void getFile(String filename, GetFileListener listener) throws ServiceError, IOException {
     Integer32 frsmId = openFile(filename);
@@ -1041,13 +1055,17 @@ public final class ClientAssociation {
   }
 
   /**
-   * Will update all data inside the model except for control variables (those that have FC=CO).
-   * Control variables are not meant to be read. Update is done by calling getDataValues on the
+   * Will update all data inside the model except for control variables (those
+   * that have FC=CO).
+   * Control variables are not meant to be read. Update is done by calling
+   * getDataValues on the
    * FCDOs below the Logical Nodes.
    *
    * @throws ServiceError if a ServiceError is returned by the server.
-   * @throws IOException if a fatal association error occurs. The association object will be closed
-   *     and can no longer be used after this exception is thrown.
+   * @throws IOException  if a fatal association error occurs. The association
+   *                      object will be closed
+   *                      and can no longer be used after this exception is
+   *                      thrown.
    */
   public void getAllDataValues() throws ServiceError, IOException {
     for (ModelNode logicalDevice : serverModel.getChildren()) {
@@ -1096,8 +1114,8 @@ public final class ClientAssociation {
           "Error decoding GetDataValuesReponsePdu");
     }
 
-    List<AccessResult> listOfAccessResults =
-        confirmedServiceResponse.getRead().getListOfAccessResult().getAccessResult();
+    List<AccessResult> listOfAccessResults = confirmedServiceResponse.getRead().getListOfAccessResult()
+        .getAccessResult();
 
     if (listOfAccessResults.size() != 1) {
       throw new ServiceError(
@@ -1113,16 +1131,23 @@ public final class ClientAssociation {
   }
 
   /**
-   * The implementation of the SetDataValues ACSI service. Will send an MMS write request with the
-   * values of all Basic Data Attributes of the given model node. Will simply return if all values
-   * have been successfully written. If one of the Basic Data Attributes could not be written then a
-   * <code>ServiceError</code> will be thrown. In this case it is not possible to find out which of
+   * The implementation of the SetDataValues ACSI service. Will send an MMS write
+   * request with the
+   * values of all Basic Data Attributes of the given model node. Will simply
+   * return if all values
+   * have been successfully written. If one of the Basic Data Attributes could not
+   * be written then a
+   * <code>ServiceError</code> will be thrown. In this case it is not possible to
+   * find out which of
    * several Basic Data Attributes could not be written.
    *
-   * @param modelNode the functionally constrained model node that is to be written.
+   * @param modelNode the functionally constrained model node that is to be
+   *                  written.
    * @throws ServiceError if a ServiceError is returned by the server.
-   * @throws IOException if a fatal association error occurs. The association object will be closed
-   *     and can no longer be used after this exception is thrown.
+   * @throws IOException  if a fatal association error occurs. The association
+   *                      object will be closed
+   *                      and can no longer be used after this exception is
+   *                      thrown.
    */
   public void setDataValues(FcModelNode modelNode) throws ServiceError, IOException {
     ConfirmedServiceRequest serviceRequest = constructSetDataValuesRequest(modelNode);
@@ -1133,8 +1158,7 @@ public final class ClientAssociation {
   private ConfirmedServiceRequest constructSetDataValuesRequest(FcModelNode modelNode)
       throws ServiceError {
 
-    VariableAccessSpecification variableAccessSpecification =
-        constructVariableAccessSpecification(modelNode);
+    VariableAccessSpecification variableAccessSpecification = constructVariableAccessSpecification(modelNode);
 
     ListOfData listOfData = new ListOfData();
     List<Data> dataList = listOfData.getData();
@@ -1181,14 +1205,19 @@ public final class ClientAssociation {
   }
 
   /**
-   * This function will get the definition of all persistent DataSets from the server and update the
-   * DataSets in the ServerModel that was returned by {@code retrieveModel} or set using {@code
-   * setServerModel}. It will delete DataSets that have been deleted since the last update and add
+   * This function will get the definition of all persistent DataSets from the
+   * server and update the
+   * DataSets in the ServerModel that was returned by {@code retrieveModel} or set
+   * using {@code
+   * setServerModel}. It will delete DataSets that have been deleted since the
+   * last update and add
    * any new DataSets
    *
    * @throws ServiceError if a ServiceError is returned by the server.
-   * @throws IOException if a fatal association error occurs. The association object will be closed
-   *     and can no longer be used after this exception is thrown.
+   * @throws IOException  if a fatal association error occurs. The association
+   *                      object will be closed
+   *                      and can no longer be used after this exception is
+   *                      thrown.
    */
   public void updateDataSets() throws ServiceError, IOException {
 
@@ -1200,8 +1229,7 @@ public final class ClientAssociation {
     Collection<ModelNode> lds = serverModel.getChildren();
 
     for (ModelNode ld : lds) {
-      ConfirmedServiceRequest serviceRequest =
-          constructGetDirectoryRequest(ld.getName(), "", false);
+      ConfirmedServiceRequest serviceRequest = constructGetDirectoryRequest(ld.getName(), "", false);
       ConfirmedServiceResponse confirmedServiceResponse = encodeWriteReadDecode(serviceRequest);
       decodeAndRetrieveDsNamesAndDefinitions(confirmedServiceResponse, (LogicalDevice) ld);
     }
@@ -1268,11 +1296,10 @@ public final class ClientAssociation {
           "decodeGetDataSetDirectoryResponse: Error decoding server response");
     }
 
-    GetNamedVariableListAttributesResponse getNamedVariableListAttResponse =
-        confirmedServiceResponse.getGetNamedVariableListAttributes();
+    GetNamedVariableListAttributesResponse getNamedVariableListAttResponse = confirmedServiceResponse
+        .getGetNamedVariableListAttributes();
     boolean deletable = getNamedVariableListAttResponse.getMmsDeletable().value;
-    List<VariableDefs.SEQUENCE> variables =
-        getNamedVariableListAttResponse.getListOfVariable().getSEQUENCE();
+    List<VariableDefs.SEQUENCE> variables = getNamedVariableListAttResponse.getListOfVariable().getSEQUENCE();
 
     if (variables.size() == 0) {
       throw new ServiceError(
@@ -1325,13 +1352,15 @@ public final class ClientAssociation {
   }
 
   /**
-   * The client should create the data set first and add it to either the non-persistent list or to
+   * The client should create the data set first and add it to either the
+   * non-persistent list or to
    * the model. Then it should call this method for creation on the server side
    *
    * @param dataSet the data set to be created on the server side
    * @throws ServiceError if a ServiceError is returned by the server.
-   * @throws IOException if a fatal IO error occurs. The association object will be closed and can
-   *     no longer be used after this exception is thrown.
+   * @throws IOException  if a fatal IO error occurs. The association object will
+   *                      be closed and can
+   *                      no longer be used after this exception is thrown.
    */
   public void createDataSet(DataSet dataSet) throws ServiceError, IOException {
     ConfirmedServiceRequest serviceRequest = constructCreateDataSetRequest(dataSet);
@@ -1340,8 +1369,10 @@ public final class ClientAssociation {
   }
 
   /**
-   * dsRef = either LD/LN.DataSetName (persistent) or @DataSetname (non-persistent) Names in
-   * dsMemberRef should be in the form: LD/LNName.DoName or LD/LNName.DoName.DaName
+   * dsRef = either LD/LN.DataSetName (persistent) or @DataSetname
+   * (non-persistent) Names in
+   * dsMemberRef should be in the form: LD/LNName.DoName or
+   * LD/LNName.DoName.DaName
    */
   private ConfirmedServiceRequest constructCreateDataSetRequest(DataSet dataSet)
       throws ServiceError {
@@ -1399,8 +1430,8 @@ public final class ClientAssociation {
           "decodeDeleteDataSetResponse: Error decoding server response");
     }
 
-    DeleteNamedVariableListResponse deleteNamedVariableListResponse =
-        confirmedServiceResponse.getDeleteNamedVariableList();
+    DeleteNamedVariableListResponse deleteNamedVariableListResponse = confirmedServiceResponse
+        .getDeleteNamedVariableList();
 
     if (deleteNamedVariableListResponse.getNumberDeleted().intValue() != 1) {
       throw new ServiceError(
@@ -1413,16 +1444,22 @@ public final class ClientAssociation {
   }
 
   /**
-   * The implementation of the GetDataSetValues ACSI service. After a successful return, the Basic
-   * Data Attributes of the data set members will contain the values read. If one of the data set
-   * members could not be read, this will be indicated in the returned list. The returned list will
-   * have the same size as the member list of the data set. For each member it will contain <code>
-   * null</code> if reading was successful and a ServiceError if reading of this member failed.
+   * The implementation of the GetDataSetValues ACSI service. After a successful
+   * return, the Basic
+   * Data Attributes of the data set members will contain the values read. If one
+   * of the data set
+   * members could not be read, this will be indicated in the returned list. The
+   * returned list will
+   * have the same size as the member list of the data set. For each member it
+   * will contain <code>
+   * null</code> if reading was successful and a ServiceError if reading of this
+   * member failed.
    *
    * @param dataSet the DataSet that is to be read.
    * @return a list indicating ServiceErrors that may have occurred.
-   * @throws IOException if a fatal IO error occurs. The association object will be closed and can
-   *     no longer be used after this exception is thrown.
+   * @throws IOException if a fatal IO error occurs. The association object will
+   *                     be closed and can
+   *                     no longer be used after this exception is thrown.
    */
   public List<ServiceError> getDataSetValues(DataSet dataSet) throws IOException {
 
@@ -1464,10 +1501,9 @@ public final class ClientAssociation {
     List<ServiceError> serviceErrors = new ArrayList<>(dataSetSize);
 
     if (confirmedServiceResponse.getRead() == null) {
-      ServiceError serviceError =
-          new ServiceError(
-              ServiceError.FAILED_DUE_TO_COMMUNICATIONS_CONSTRAINT,
-              "Error decoding GetDataValuesReponsePdu");
+      ServiceError serviceError = new ServiceError(
+          ServiceError.FAILED_DUE_TO_COMMUNICATIONS_CONSTRAINT,
+          "Error decoding GetDataValuesReponsePdu");
       for (int i = 0; i < dataSetSize; i++) {
         serviceErrors.add(serviceError);
       }
@@ -1478,10 +1514,9 @@ public final class ClientAssociation {
     List<AccessResult> listOfAccessResults = readResponse.getListOfAccessResult().getAccessResult();
 
     if (listOfAccessResults.size() != ds.getMembers().size()) {
-      ServiceError serviceError =
-          new ServiceError(
-              ServiceError.PARAMETER_VALUE_INAPPROPRIATE,
-              "Number of AccessResults does not match the number of DataSet members.");
+      ServiceError serviceError = new ServiceError(
+          ServiceError.PARAMETER_VALUE_INAPPROPRIATE,
+          "Number of AccessResults does not match the number of DataSet members.");
       for (int i = 0; i < dataSetSize; i++) {
         serviceErrors.add(serviceError);
       }
@@ -1598,28 +1633,37 @@ public final class ClientAssociation {
   }
 
   /**
-   * Sets the selected values of the given report control block. Note that all these parameters may
-   * only be set if the RCB has been reserved but reporting has not been enabled yet.
+   * Sets the selected values of the given report control block. Note that all
+   * these parameters may
+   * only be set if the RCB has been reserved but reporting has not been enabled
+   * yet.
    *
-   * <p>The data set reference as it is set in an RCB must contain a dollar sign instead of a dot to
-   * separate the logical node from the data set name, e.g.: 'LDevice1/LNode$DataSetName'. Therefore
-   * his method will check the reference for a dot and if necessary convert it to a '$' sign before
+   * <p>
+   * The data set reference as it is set in an RCB must contain a dollar sign
+   * instead of a dot to
+   * separate the logical node from the data set name, e.g.:
+   * 'LDevice1/LNode$DataSetName'. Therefore
+   * his method will check the reference for a dot and if necessary convert it to
+   * a '$' sign before
    * sending the request to the server.
    *
-   * <p>The parameters PurgeBuf, EntryId are only applicable if the given rcb is of type BRCB.
+   * <p>
+   * The parameters PurgeBuf, EntryId are only applicable if the given rcb is of
+   * type BRCB.
    *
-   * @param rcb the report control block
-   * @param setRptId whether to set the report ID
-   * @param setDatSet whether to set the data set
-   * @param setOptFlds whether to set the optional fields
-   * @param setBufTm whether to set the buffer time
-   * @param setTrgOps whether to set the trigger options
-   * @param setIntgPd whether to set the integrity period
+   * @param rcb         the report control block
+   * @param setRptId    whether to set the report ID
+   * @param setDatSet   whether to set the data set
+   * @param setOptFlds  whether to set the optional fields
+   * @param setBufTm    whether to set the buffer time
+   * @param setTrgOps   whether to set the trigger options
+   * @param setIntgPd   whether to set the integrity period
    * @param setPurgeBuf whether to set purge buffer
-   * @param setEntryId whether to set the entry ID
+   * @param setEntryId  whether to set the entry ID
    * @return a list indicating ServiceErrors that may have occurred.
-   * @throws IOException if a fatal IO error occurs. The association object will be closed and can
-   *     no longer be used after this exception is thrown.
+   * @throws IOException if a fatal IO error occurs. The association object will
+   *                     be closed and can
+   *                     no longer be used after this exception is thrown.
    */
   public List<ServiceError> setRcbValues(
       Rcb rcb,
@@ -1702,8 +1746,7 @@ public final class ClientAssociation {
           "getReport: Error decoding server response");
     }
 
-    List<AccessResult> listRes =
-        unconfirmedServ.getInformationReport().getListOfAccessResult().getAccessResult();
+    List<AccessResult> listRes = unconfirmedServ.getInformationReport().getListOfAccessResult().getAccessResult();
 
     int index = 0;
 
@@ -1793,8 +1836,7 @@ public final class ClientAssociation {
       moreSegmentsFollow = listRes.get(index++).getSuccess().getBool().value;
     }
 
-    boolean[] inclusionBitString =
-        listRes.get(index++).getSuccess().getBitString().getValueAsBooleans();
+    boolean[] inclusionBitString = listRes.get(index++).getSuccess().getBitString().getValueAsBooleans();
     int numMembersReported = 0;
     for (boolean bit : inclusionBitString) {
       if (bit) {
@@ -1850,32 +1892,43 @@ public final class ClientAssociation {
   }
 
   /**
-   * Performs the Select ACSI Service of the control model on the given controllable Data Object
-   * (DO). By selecting a controllable DO you can reserve it for exclusive control/operation. This
-   * service is only applicable if the ctlModel Data Attribute is set to "sbo-with-normal-security"
+   * Performs the Select ACSI Service of the control model on the given
+   * controllable Data Object
+   * (DO). By selecting a controllable DO you can reserve it for exclusive
+   * control/operation. This
+   * service is only applicable if the ctlModel Data Attribute is set to
+   * "sbo-with-normal-security"
    * (2).
    *
-   * <p>The selection is canceled in one of the following events:
+   * <p>
+   * The selection is canceled in one of the following events:
    *
    * <ul>
-   *   <li>The "Cancel" ACSI service is issued.
-   *   <li>The sboTimemout (select before operate timeout) runs out. If the given controlDataObject
-   *       contains a sboTimeout Data Attribute it is possible to change the timeout after which the
-   *       selection/reservation is automatically canceled by the server. Otherwise the timeout is a
-   *       local issue of the server.
-   *   <li>The connection to the server is closed.
-   *   <li>An operate service failed because of some error
-   *   <li>The sboClass is set to "operate-once" then the selection is also canceled after a
-   *       successful operate service.
+   * <li>The "Cancel" ACSI service is issued.
+   * <li>The sboTimemout (select before operate timeout) runs out. If the given
+   * controlDataObject
+   * contains a sboTimeout Data Attribute it is possible to change the timeout
+   * after which the
+   * selection/reservation is automatically canceled by the server. Otherwise the
+   * timeout is a
+   * local issue of the server.
+   * <li>The connection to the server is closed.
+   * <li>An operate service failed because of some error
+   * <li>The sboClass is set to "operate-once" then the selection is also canceled
+   * after a
+   * successful operate service.
    * </ul>
    *
-   * @param controlDataObject needs to be a controllable Data Object that contains a Data Attribute
-   *     named "SBO".
-   * @return false if the selection/reservation was not successful (because it is already selected
-   *     by another client). Otherwise true is returned.
+   * @param controlDataObject needs to be a controllable Data Object that contains
+   *                          a Data Attribute
+   *                          named "SBO".
+   * @return false if the selection/reservation was not successful (because it is
+   *         already selected
+   *         by another client). Otherwise true is returned.
    * @throws ServiceError if a ServiceError is returned by the server.
-   * @throws IOException if a fatal IO error occurs. The association object will be closed and can
-   *     no longer be used after this exception is thrown.
+   * @throws IOException  if a fatal IO error occurs. The association object will
+   *                      be closed and can
+   *                      no longer be used after this exception is thrown.
    */
   public boolean select(FcModelNode controlDataObject) throws ServiceError, IOException {
     BdaVisibleString sbo;
@@ -1883,7 +1936,7 @@ public final class ClientAssociation {
       sbo = (BdaVisibleString) controlDataObject.getChild("SBO");
     } catch (Exception e) {
       throw new IllegalArgumentException(
-          "ModelNode needs to conain a child node named SBO in order to select");
+          "ModelNode needs to contain a child node named SBO in order to select");
     }
 
     getDataValues(sbo);
@@ -1892,36 +1945,52 @@ public final class ClientAssociation {
   }
 
   /**
-   * Executes the Operate ACSI Service on the given controllable Data Object (DO). The following
-   * subnodes of the given control DO should be set according your needs before calling this
-   * function. (Note that you can probably leave most attributes with their default value):
+   * Executes the Operate ACSI Service on the given controllable Data Object (DO).
+   * The following
+   * subnodes of the given control DO should be set according your needs before
+   * calling this
+   * function. (Note that you can probably leave most attributes with their
+   * default value):
    *
    * <ul>
-   *   <li>Oper.ctlVal - has to be set to actual control value that is to be written using the
-   *       operate service.
-   *   <li>Oper.operTm (type: BdaTimestamp) - is an optional sub data attribute of Oper (thus it may
-   *       not exist). If it exists it can be used to set the timestamp when the operation shall be
-   *       performed by the server. Thus the server will delay execution of the operate command
-   *       until the given date is reached. Can be set to an empty byte array (new byte[0]) or null
-   *       so that the server executes the operate command immediately. This is also the default.
-   *   <li>Oper.check (type: BdaCheck) is used to tell the server whether to perform the
-   *       synchrocheck and interlockcheck. By default they are turned off.
-   *   <li>Oper.orign - contains the two data attributes orCat (origin category, type: BdaInt8) and
-   *       orIdent (origin identifier, type BdaOctetString). Origin is optionally reflected in the
-   *       status Data Attribute controlDO.origin. By reading this data attribute other clients can
-   *       see who executed the last operate command. The default value for orCat is 0
-   *       ("not-supported") and the default value for orIdent is ""(the empty string).
-   *   <li>Oper.Test (BdaBoolean) - if true this operate command is sent for test purposes only.
-   *       Default is false.
+   * <li>Oper.ctlVal - has to be set to actual control value that is to be written
+   * using the
+   * operate service.
+   * <li>Oper.operTm (type: BdaTimestamp) - is an optional sub data attribute of
+   * Oper (thus it may
+   * not exist). If it exists it can be used to set the timestamp when the
+   * operation shall be
+   * performed by the server. Thus the server will delay execution of the operate
+   * command
+   * until the given date is reached. Can be set to an empty byte array (new
+   * byte[0]) or null
+   * so that the server executes the operate command immediately. This is also the
+   * default.
+   * <li>Oper.check (type: BdaCheck) is used to tell the server whether to perform
+   * the
+   * synchrocheck and interlockcheck. By default they are turned off.
+   * <li>Oper.orign - contains the two data attributes orCat (origin category,
+   * type: BdaInt8) and
+   * orIdent (origin identifier, type BdaOctetString). Origin is optionally
+   * reflected in the
+   * status Data Attribute controlDO.origin. By reading this data attribute other
+   * clients can
+   * see who executed the last operate command. The default value for orCat is 0
+   * ("not-supported") and the default value for orIdent is ""(the empty string).
+   * <li>Oper.Test (BdaBoolean) - if true this operate command is sent for test
+   * purposes only.
+   * Default is false.
    * </ul>
    *
    * All other operate parameters are automatically handled by this function.
    *
-   * @param controlDataObject needs to be a controllable Data Object that contains a Data Attribute
-   *     named "Oper".
+   * @param controlDataObject needs to be a controllable Data Object that contains
+   *                          a Data Attribute
+   *                          named "Oper".
    * @throws ServiceError if a ServiceError is returned by the server
-   * @throws IOException if a fatal IO error occurs. The association object will be closed and can
-   *     no longer be used after this exception is thrown.
+   * @throws IOException  if a fatal IO error occurs. The association object will
+   *                      be closed and can
+   *                      no longer be used after this exception is thrown.
    */
   public void operate(FcModelNode controlDataObject) throws ServiceError, IOException {
     ConstructedDataAttribute oper;
@@ -1965,7 +2034,7 @@ public final class ClientAssociation {
     private void dispatch(final Consumer<ClientEventListener> consumer) {
 
       final ClientEventListener l = reportListener;
-  
+
       if (l != null) {
         dispatcher.submit(() -> consumer.accept(l));
       }
@@ -1998,14 +2067,13 @@ public final class ClientAssociation {
 
           if (decodedResponsePdu.getUnconfirmedPDU() != null) {
             final InformationReport r = decodedResponsePdu
-            .getUnconfirmedPDU()
-            .getService()
-            .getInformationReport();
+                .getUnconfirmedPDU()
+                .getService()
+                .getInformationReport();
             if (r
-                    .getVariableAccessSpecification()
-                    .getListOfVariable()
-                != null) {
-                  dispatch(l -> l.newRawReport(r));
+                .getVariableAccessSpecification()
+                .getListOfVariable() != null) {
+              dispatch(l -> l.newRawReport(r));
             } else {
               if (reportListener != null) {
                 final Report report = processReport(decodedResponsePdu);
@@ -2020,9 +2088,10 @@ public final class ClientAssociation {
               if (expectedResponseId == null) {
                 // Discarding Reject MMS PDU because no listener for request was found.
                 continue;
-              } else if (decodedResponsePdu.getRejectPDU().getOriginalInvokeID().value.intValue()
-                  != expectedResponseId) {
-                // Discarding Reject MMS PDU because no listener with fitting invokeID was found.
+              } else if (decodedResponsePdu.getRejectPDU().getOriginalInvokeID().value
+                  .intValue() != expectedResponseId) {
+                // Discarding Reject MMS PDU because no listener with fitting invokeID was
+                // found.
                 continue;
               } else {
                 try {
@@ -2037,9 +2106,10 @@ public final class ClientAssociation {
               if (expectedResponseId == null) {
                 // Discarding ConfirmedError MMS PDU because no listener for request was found.
                 continue;
-              } else if (decodedResponsePdu.getConfirmedErrorPDU().getInvokeID().value.intValue()
-                  != expectedResponseId) {
-                // Discarding ConfirmedError MMS PDU because no listener with fitting invokeID was
+              } else if (decodedResponsePdu.getConfirmedErrorPDU().getInvokeID().value
+                  .intValue() != expectedResponseId) {
+                // Discarding ConfirmedError MMS PDU because no listener with fitting invokeID
+                // was
                 // found.
                 continue;
               } else {
@@ -2053,11 +2123,13 @@ public final class ClientAssociation {
           } else {
             synchronized (incomingResponses) {
               if (expectedResponseId == null) {
-                // Discarding ConfirmedResponse MMS PDU because no listener for request was found.
+                // Discarding ConfirmedResponse MMS PDU because no listener for request was
+                // found.
                 continue;
-              } else if (decodedResponsePdu.getConfirmedResponsePDU().getInvokeID().value.intValue()
-                  != expectedResponseId) {
-                // Discarding ConfirmedResponse MMS PDU because no listener with fitting invokeID
+              } else if (decodedResponsePdu.getConfirmedResponsePDU().getInvokeID().value
+                  .intValue() != expectedResponseId) {
+                // Discarding ConfirmedResponse MMS PDU because no listener with fitting
+                // invokeID
                 // was
                 // found.
                 continue;
