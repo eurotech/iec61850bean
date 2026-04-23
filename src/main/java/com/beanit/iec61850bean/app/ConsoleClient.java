@@ -34,9 +34,12 @@ import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManagerFactory;
 
+import org.junit.jupiter.api.Test;
+
 import com.beanit.iec61850bean.BasicDataAttribute;
 import com.beanit.iec61850bean.BdaInt8;
 import com.beanit.iec61850bean.BdaInt8U;
+import com.beanit.iec61850bean.BdaOctetString;
 import com.beanit.iec61850bean.BdaTimestamp;
 import com.beanit.iec61850bean.BdaTriggerConditions;
 import com.beanit.iec61850bean.Brcb;
@@ -64,6 +67,7 @@ import com.beanit.iec61850bean.internal.cli.CliParser;
 import com.beanit.iec61850bean.internal.cli.IntCliParameter;
 import com.beanit.iec61850bean.internal.cli.StringCliParameter;
 import com.beanit.iec61850bean.internal.mms.asn1.InformationReport;
+import com.google.protobuf.EnumValue;
 
 public class ConsoleClient {
 
@@ -96,6 +100,9 @@ public class ConsoleClient {
       .setDescription("Path to a keystore file for enabling TLS").buildStringParameter("keystore-file");
   private static final StringCliParameter keystorePassword = new CliParameterBuilder("-kp")
       .setDescription("Keystore password").buildStringParameter("keystore-password");
+  protected static final long TEST_SECONDS_FROM_EPOCH = 1773062849;
+
+  private Optional<WriteValue<?>> writeValue = Optional.empty();
 
   private static final ActionProcessor actionProcessor = new ActionProcessor(new ActionExecutor());
   private static volatile ClientAssociation association;
@@ -436,68 +443,43 @@ public class ConsoleClient {
             }
           }
           case COMMAND_KEY: {
-            // if (serverModel == null) {
-            // System.out.println("You have to retrieve the model before issuing a
-            // command.");
-            // return;
-            // }
+            if (serverModel == null) {
+              System.out.println("You have to retrieve the model before issuing acommand.");
+              return;
+            }
 
-            // // FcModelNode fcModelNode = askForFcModelNode();
+            FcModelNode fcModelNode = askForFcModelNode();
 
-            // System.out.println("Sending command...");
-
-            // System.out.println("Enter the reference of the data set to create (e.g.
-            // myld/MYLN0.dataset1): ");
-            // String reference = actionProcessor.getReader().readLine();
-
-            // // System.out.println("How many entries shall the data set have: ");
-            // // String numberOfEntriesString = actionProcessor.getReader().readLine();
-            // // int numDataSetEntries = Integer.parseInt(numberOfEntriesString);
-
-            // List<FcModelNode> dataSetMembers = new ArrayList<>();
-            // // for (int i = 0; i < numDataSetEntries; i++) {
-            // dataSetMembers.add(askForFcModelNode());
-            // // }
-
-            // DataSet dataSet = new DataSet(reference, dataSetMembers);
-            // // System.out.print("Creating data set..");
-            // // association.createDataSet(dataSet);
-            // // System.out.println("done");
-
-            // try {
-            // association.setDataSetValues(dataSet); // SELECT on SBOW
-            // // association.operate( fcModelNode, null); //OPERATE on OPER
-            // } catch (ServiceError e) {
-            // System.out.println("Service error: " + e.getMessage());
-            // return;
-            // } catch (IOException e) {
-            // System.out.println("Fatal error: " + e.getMessage());
-            // return;
-            // }
-
-            // System.out.println("Successfully sent command.");
-            // // System.out.println(fcModelNode);
-
-            // FcModelNode fcModelNode = askForFcModelNode();
-            final WriteValue<FcModelNode> result = new WriteValue<>("CCI016_01LD_Plant/WlimDWMX1.Mod",
-                FcModelNode.class, Fc.CO) //
-                .withAttribute("SBOw.ctlVal", BdaInt8.class, BdaInt8::setValue, (byte) 3) //
-                .withAttribute("SBOw.T", BdaTimestamp.class, BdaTimestamp::setInstant,
-                    Instant.ofEpochSecond(1773062849)) //
-                .withAttribute("SBOw.origin.orCat", BdaInt8.class, BdaInt8::setValue, (byte) 8) //
-                .withAttribute("SBOw.ctlNum", BdaInt8U.class, BdaInt8U::setValue, (short) 0);
-
-            final WriteValue<FcModelNode> result1 = new WriteValue<>("CCI016_01LD_Plant/WlimDWMX1.Mod",
-                FcModelNode.class, Fc.CO) //
-                .withAttribute("Oper.ctlVal", BdaInt8.class, BdaInt8::setValue, (byte) 3) //
-                .withAttribute("Oper.T", BdaTimestamp.class, BdaTimestamp::setInstant,
-                    Instant.ofEpochSecond(1773062849)) //
-                .withAttribute("Oper.origin.orCat", BdaInt8.class, BdaInt8::setValue, (byte) 8) //
-                .withAttribute("Oper.ctlNum", BdaInt8U.class, BdaInt8U::setValue, (short) 0);
+            // Support only BdaInt8 for now
+            byte ctlVal = askForCtlVal();
             try {
-              result.write();
-              Thread.sleep(1000);
-              association.operate(result1.attribute);
+              final WriteValue<FcModelNode> selectWriteValue = new WriteValue<FcModelNode>(fcModelNode) //
+                  .withAttribute("ctlVal", BdaInt8.class, BdaInt8::setValue, ctlVal) //
+                  .withAttribute("ctlNum", BdaInt8U.class, BdaInt8U::setValue, (short) 1) //
+                  .withAttribute("T", BdaTimestamp.class, BdaTimestamp::setInstant,
+                      Instant.ofEpochSecond(TEST_SECONDS_FROM_EPOCH)) //
+                  .withAttribute("origin.orCat", BdaInt8.class, BdaInt8::setValue, (byte) 8);
+
+              select(selectWriteValue);
+
+              String fcModelNodeName = fcModelNode.getReference().toString();
+              Fc fc = fcModelNode.getFc();
+              if (fcModelNodeName.endsWith(".SBOw")) {
+                String fcModelNameOper = fcModelNodeName.substring(0, fcModelNodeName.lastIndexOf(".SBOw"));
+                FcModelNode fcModelNodeOper = retrieveFcModelNode(fcModelNameOper, fc);
+                final WriteValue<FcModelNode> operateWriteValue = new WriteValue<FcModelNode>(fcModelNodeOper) //
+                    .withAttribute("Oper.ctlVal", BdaInt8.class, BdaInt8::setValue, ctlVal) //
+                    .withAttribute("Oper.T", BdaTimestamp.class, BdaTimestamp::setInstant,
+                        Instant.ofEpochSecond(TEST_SECONDS_FROM_EPOCH)) //
+                    .withAttribute("Oper.ctlNum", BdaInt8U.class, BdaInt8U::setValue, (short) 1) //
+                    .withAttribute("Oper.origin.orCat", BdaInt8.class, BdaInt8::setValue, (byte) 8);
+
+                operate(operateWriteValue);
+              } else {
+                System.out.println(
+                    "Warning: The reference you entered does not end with .SBOw. The library will only send a Select (not Operate) command. If you want to send an Operate command, please enter the reference of the SBOw node (e.g. myld/MYLN0.do.SBOw instead of myld/MYLN0.do).");
+              }
+
             } catch (ServiceError e) {
               System.out.println("Service error: " + e.getMessage());
               return;
@@ -505,30 +487,42 @@ public class ConsoleClient {
               System.out.println("Fatal error: " + e.getMessage());
               return;
             }
-
+            System.out.println("Successfully sent command.");
             break;
           }
           default:
             break;
         }
       } catch (Exception e) {
-        throw new ActionException(e);
+        System.out.println("Error executing action: " + e.getMessage());
       }
     }
 
     //
 
+    private byte askForCtlVal() throws IOException {
+      System.out.println("Enter the ctlVal to send: ");
+      String ctlValString = actionProcessor.getReader().readLine();
+      byte ctlVal;
+      try {
+        ctlVal = Byte.parseByte(ctlValString);
+      } catch (NumberFormatException e) {
+        throw new IllegalArgumentException("Invalid ctlVal: " + ctlValString);
+      }
+      return ctlVal;
+    }
+
+    protected void select(WriteValue<?> writeValue) throws ServiceError, IOException {
+      writeValue.write();
+    }
+
+    protected void operate(WriteValue<?> writeValue) throws ServiceError, IOException {
+      association.operate(writeValue.attribute);
+    }
+
     protected class WriteValue<T extends FcModelNode> {
 
       private final T attribute;
-
-      public WriteValue(final String reference, final Class<T> ty) {
-        this.attribute = ty.cast(retrieveFcModelNode(reference));
-      }
-
-      public WriteValue(final String reference, final Class<T> ty, final Fc fc) {
-        this.attribute = ty.cast(retrieveFcModelNode(reference, fc));
-      }
 
       private WriteValue(final T attr) {
         this.attribute = attr;
@@ -547,19 +541,9 @@ public class ConsoleClient {
         return this;
       }
 
-      public <U> WriteValue<T> with(final Consumer<T> setter) {
-        setter.accept(this.attribute);
-        return this;
-      }
-
       public void write() throws ServiceError, IOException {
         association.setDataValues(this.attribute);
       }
-    }
-
-    protected FcModelNode retrieveFcModelNode(final String reference) {
-
-      return retrieveFcModelNode(reference, Fc.CF);
     }
 
     protected FcModelNode retrieveFcModelNode(final String reference, final Fc fc) {
@@ -597,7 +581,6 @@ public class ConsoleClient {
         final Optional<ModelNode> nextNode = Optional.ofNullable(node.get().getChild(next));
 
         if (!nextNode.isPresent()) {
-          // logger.info("node not found: current: {}, next: {}", node, next);
           System.out.println("node not found: current: " + node + ", next: " + next);
           return Optional.empty();
         }
@@ -624,7 +607,11 @@ public class ConsoleClient {
         throw new ActionException("Unknown functional constraint.");
       }
 
-      ModelNode modelNode = serverModel.findModelNode(reference, Fc.fromString(fcString));
+      return getFcModelNode(reference, fc);
+    }
+
+    FcModelNode getFcModelNode(String reference, Fc fc) throws ActionException {
+      ModelNode modelNode = serverModel.findModelNode(reference, fc);
       if (modelNode == null) {
         throw new ActionException(
             "A model node with the given reference and functional constraint could not be found.");
@@ -634,8 +621,7 @@ public class ConsoleClient {
         throw new ActionException("The given model node is not a functionally constraint model node.");
       }
 
-      FcModelNode fcModelNode = (FcModelNode) modelNode;
-      return fcModelNode;
+      return (FcModelNode) modelNode;
     }
 
     @Override
