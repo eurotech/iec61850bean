@@ -102,8 +102,6 @@ public class ConsoleClient {
       .setDescription("Keystore password").buildStringParameter("keystore-password");
   protected static final long TEST_SECONDS_FROM_EPOCH = 1773062849;
 
-  private Optional<WriteValue<?>> writeValue = Optional.empty();
-
   private static final ActionProcessor actionProcessor = new ActionProcessor(new ActionExecutor());
   private static volatile ClientAssociation association;
   private static ServerModel serverModel;
